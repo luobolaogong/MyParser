@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:dart_midi/dart_midi.dart';
 import 'package:logging/logging.dart';
+
 import 'Note.dart';
 
 ///
@@ -147,7 +147,7 @@ class MyMidiWriter {
 
   /// Create a list of MidiEvent lists, one list per track.  First list is special.  After that it's just tracks.
   /// For now we have two tracks only.
-  List<List<MidiEvent>> fillInTracks(int timeSigNumerator, int timeSigDenominator, int bpm, int ticksPerBeat, List<Note> notes) {
+  List<List<MidiEvent>> fillInTracks(int timeSigNumerator, int timeSigDenominator, int bpm, int ticksPerBeat, List<Note> notes, int nominalVolume) {
     // Construct a list to put lists of track events in.
     var listOfTrackEventsLists = <List<MidiEvent>>[];
 
@@ -191,61 +191,60 @@ class MyMidiWriter {
     listOfTrackEventsLists.add(trackEventsList);
 
 
+
+
     // Start a new list.  This one will hold note events mostly
     trackEventsList = <MidiEvent>[];
 
-    var noteNumber = 61;
-    var noteVolume = 50; // was 90  I think VLC clips the note if too loud
+    var noteNumber = 60; // Initial/default note number == tap
+    var noteVolume = nominalVolume; // was 90  I think VLC clips the note if too loud
     var noteVolumeAddition = 0;
     var noteChannel = 0;
+
+
     // "notes" is a list of Note objects which have duration, type, and articulation info.
-    // So loop through them and add them to the notes track.
-
-
-
-    // Hey wait, where are the notes?????
-    // Adjusting volumes has to be cumulative for flams/drags and articulations.  Fix this later
+    // Loop through them, set noteNumber and volume, and then add to the notes track.
     notes.forEach((note) {
-//      print('Hey, note.duration.firstNumber is ${note.duration.firstNumber}');
+      // Adjust note volumes based on type of note and articulations
       noteVolumeAddition = 0;
-//      if (note.duration.secondNumber != null) {
-        switch (note.type) {
-          case NoteType.leftTap:
-          case NoteType.rightTap:
-            noteNumber = 60;
-            break;
-          case NoteType.leftFlam:
-          case NoteType.rightFlam:
-            noteNumber = 61;
-            noteVolumeAddition = (noteVolume * 0.1).round();
-              break;
-          case NoteType.leftDrag:
-          case NoteType.rightDrag:
-            noteNumber = 62;
-            noteVolumeAddition = (noteVolume * 0.2).round();
-            break;
-          case NoteType.leftBuzz:
-          case NoteType.rightBuzz:
-            noteNumber = 63;
-            break;
-          default:
-            log.fine('What the heck was that note? $note.type');
-        }
-        switch (note.articulation) {
-          case NoteArticulation.accent:
-            noteVolumeAddition = (noteVolume * 0.25).round();
-            break;
-          case NoteArticulation.bigAccent:
-            noteVolumeAddition = (noteVolume * .5).round();
-            break;
-        }
-        noteOnNoteOff(note.duration.firstNumber / note.duration.secondNumber, noteNumber, noteVolume + noteVolumeAddition, noteChannel, ticksPerBeat, trackEventsList);
-//      }
-//      else {
-//        print('HOPEFULLY THIS DOES NOT HAPPEN ANY MORE NOW THAT DEFAULT IS 1 IN Note.dart');
-//        // should just always set secondNumber to 1 as default probably rather than check for null
-//        noteOnNoteOff(note.duration.firstNumber, 60, 90, 0, ticksPerBeat, trackEventsList);
-//      }
+      switch (note.type) {
+        case NoteType.leftTap:
+        case NoteType.rightTap:
+          noteVolumeAddition = 0;
+//            noteNumber = 60;
+          break;
+        case NoteType.leftFlam:
+        case NoteType.rightFlam:
+//            noteNumber = 61;
+          noteVolumeAddition = (noteVolume * 0.1).round();
+          break;
+        case NoteType.leftDrag:
+        case NoteType.rightDrag:
+//            noteNumber = 62;
+          noteVolumeAddition = (noteVolume * 0.2).round();
+          break;
+        case NoteType.leftBuzz:
+        case NoteType.rightBuzz:
+//            noteNumber = 63;
+          noteVolumeAddition = 0;
+          break;
+        case NoteType.rest:
+//          noteVolume = 0; // wrong
+          break;
+        default:
+          log.fine('What the heck was that note? $note.type');
+      }
+
+      switch (note.articulation) {
+        case NoteArticulation.accent:
+          noteVolumeAddition = (noteVolume * 0.50).round();
+          break;
+        case NoteArticulation.bigAccent:
+          noteVolumeAddition = (noteVolume * 1.0).round();
+          break;
+      }
+      note.velocity = noteVolume + noteVolumeAddition;
+      noteOnNoteOff(note, noteChannel, ticksPerBeat, trackEventsList);
     });
 
     if (trackEventsList.length == 0) {
@@ -266,7 +265,49 @@ class MyMidiWriter {
   /// a something like 1.333333, so it shouldn't be called a NameValue like "4:3" could be.
   /// Clean this up later.
   ///
-  double noteOnNoteOff(num snareLangNoteNameValue, int noteNumber, int velocity, int channel, int ticksPerBeat, List<MidiEvent> trackEventsList) {
+//  double noteOnNoteOff(num snareLangNoteNameValue, int noteNumber, int velocity, int channel, int ticksPerBeat, List<MidiEvent> trackEventsList) {
+  double noteOnNoteOff(Note note, int channel, int ticksPerBeat, List<MidiEvent> trackEventsList) {
+
+//    num snareLangNoteNameValue = note.duration.firstNumber / note.duration.secondNumber;
+//    num snareLangNoteNameValue;
+//    if (note.duration != null) {
+      if (note.duration == null) {
+        log.severe('note should not have a null duration.');
+      }
+      num snareLangNoteNameValue = note.duration.firstNumber / note.duration.secondNumber;
+//    }
+    //var noteNumber = note.number;
+    var velocity = note.velocity;
+    if (note.type == NoteType.rest) {
+      velocity = 0;
+    }
+
+      var noteNumber;
+    switch (note.type) {
+      case NoteType.leftTap:
+      case NoteType.rightTap:
+        noteNumber = 60;
+        break;
+      case NoteType.leftFlam:
+      case NoteType.rightFlam:
+        noteNumber = 61;
+        break;
+      case NoteType.leftDrag:
+      case NoteType.rightDrag:
+        noteNumber = 62;
+        break;
+      case NoteType.leftBuzz:
+      case NoteType.rightBuzz:
+        noteNumber = 63;
+        break;
+      case NoteType.rest:
+        noteNumber = 99; // see if this helps stop blowups when writing
+        break;
+      default:
+        log.fine('What the heck was that note? $note.type');
+    }
+
+
     var noteOnEvent = NoteOnEvent();
     noteOnEvent.type = 'noteOn';
     noteOnEvent.deltaTime = 0; // might need to adjust to handle roundoff???
@@ -279,7 +320,7 @@ class MyMidiWriter {
     noteOffEvent.type = 'noteOff';
     noteOffEvent.deltaTime = (4 * ticksPerBeat / snareLangNoteNameValue).round(); // keep track of roundoff?
     noteOffEvent.noteNumber = noteNumber;
-    noteOffEvent.velocity = velocity;
+    noteOffEvent.velocity = velocity; // shouldn't this just be 0?
     noteOffEvent.channel = channel;
     trackEventsList.add(noteOffEvent);
     // By rounding, what fraction of a tick are we adding or subtracting to the set of notes?
@@ -298,7 +339,7 @@ class MyMidiWriter {
     var diffTicksAsDouble = noteTicksAsDouble - noteOffEvent.deltaTime;
     cumulativeTicksOff += diffTicksAsDouble;
 
-    log.warning('In noteOnNoteOff, Created a noteOff with noteName ${snareLangNoteNameValue}, deltaTime ${noteOffEvent.deltaTime} (${noteTicksAsDouble}), cumulative ticks off: $cumulativeTicksOff');
+    log.info('In noteOnNoteOff, Created a noteOff with noteName ${snareLangNoteNameValue}, deltaTime ${noteOffEvent.deltaTime} (${noteTicksAsDouble}), velocity: ${velocity}, cumulative ticks off: $cumulativeTicksOff');
 
 //    print('just created a noteOff with noteName ${snareLangNoteNameValue}, deltaTime ${noteOffEvent.deltaTime} (${noteTicksAsDouble}), cumulative ticks off: $cumulativeTicksOff');
 //    double remainderTicksAsDouble = (4.0 * ticksPerBeat).remainder(snareLangNoteNameValue);

@@ -3,7 +3,9 @@
 class Note {
   NoteArticulation articulation;
   NoteDuration duration;
-  NoteType type;
+  NoteType type; // this will determine the midi note number later
+  //int number; // related to pitch, but tells soundfont what waveform to play
+  int velocity = 0; // volume essentially  Probably should be limited in range, new, set to 0;
 
 
   Note() {
@@ -11,27 +13,16 @@ class Note {
     duration = NoteDuration();
     //type = NoteType.rightTap; // left?
   }
-  Note.full(this.articulation, this.duration, this.type);
-  Note.articulation(this.articulation);
-  Note.duration(this.duration);
-  Note.type(this.type);
-
-  // "each instance variable has an implicit getter, plus a setter if appropriate."
-  // So these should not be needed:
-//  NoteArticulation get noteArticulation => articulation;
-//  NoteDuration get noteDuration => duration;
-//  NoteType get noteType => type;
-//
-//  set noteArticulation(NoteArticulation articulation) {
-//    this.articulation = articulation;
-//  }
-
-
 
 
   // Method.
-  void describe() {
-    print('Articulation: ${articulation}, Duration: ${duration.firstNumber}:${duration.secondNumber}, Type: ${type}');
+  String describe() {
+//    return 'Articulation: ${articulation}, Duration: ${duration.firstNumber}:${duration.secondNumber}, Type: ${type}, Velocity: ${velocity}';
+    String durationString;
+    if (duration != null) {
+      durationString = '${duration.firstNumber}:${duration.secondNumber}';
+    }
+    return 'Articulation: ${articulation}, Duration: $durationString, Type: ${type}, Velocity: ${velocity}';
   }
 }
 
@@ -44,6 +35,10 @@ class NoteDuration {
   int firstNumber; // ??????????????????????????????????????????????????????????????????????????????????????????????
 //  int firstNumber = 4; // ??????????????????????????????????????????????????????????????????????????????????????????????
   int secondNumber = 1; // want default to be 1 rather than null  ??????????????????????
+
+  String describe() {
+    return 'Duration.firstNumber: ${firstNumber}, Duration.secondNumber: ${secondNumber}';
+  }
 }
 
 enum NoteType {
@@ -57,5 +52,6 @@ enum NoteType {
   leftBuzz,
   rightTapRoll,
   leftTapRoll,
+  rest,
   previousNoteDurationOrType
 }
